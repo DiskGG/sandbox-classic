@@ -77,6 +77,7 @@ partial class GameMode : Component.INetworkListener
 		ent.Transform.Rotation = modelRotation;
 
 		ent.Tags.Add( "solid" );
+		ent.Tags.Add( "prop" );
 
 		var prop = ent.Components.Create<Prop>();
 		prop.Model = model;
