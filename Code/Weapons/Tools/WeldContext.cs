@@ -13,6 +13,7 @@ public sealed class WeldContext : Component
 
 	protected override void OnStart()
 	{
+        if(weldedObject == null) Destroy();
 		if(MainWeld)
         {
             if(body == null) body = Components.Get<Rigidbody>().PhysicsBody;
@@ -23,5 +24,9 @@ public sealed class WeldContext : Component
             
             weldJoint = PhysicsJoint.CreateFixed(p1,p2);
         }
+	}
+    protected override void OnDestroy()
+	{
+		if(MainWeld) weldJoint.Remove();
 	}
 }

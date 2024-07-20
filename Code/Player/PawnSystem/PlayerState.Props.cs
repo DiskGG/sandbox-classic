@@ -2,9 +2,9 @@ namespace Softsplit;
 
 public partial class PlayerState
 {
-	public List<GameObject> SpawnedPropsList { get; private set; } = new();
+	public List<Thing> SpawnedThings { get; private set; } = new();
 
-	private float undoPropHeldTimer = 0;
+	private float undoPropHeldTimer = -2;
 	private float undoPropRate = 1;
 
 	protected void CheckPropUndo()
@@ -12,12 +12,12 @@ public partial class PlayerState
 		if ( Input.Pressed( "undo" ) )
 		{
 			undoPropRate = 1;
-			undoPropHeldTimer = 0;
+			undoPropHeldTimer = -2;
 			HandlePropDestroyInitiation();
 		}
 		else if ( Input.Down( "undo" ) )
 		{
-			undoPropRate -= 0.0045f;
+			undoPropRate -= 0.0045f * Time.Delta;
 			undoPropHeldTimer += 0.04f;
 			if ( undoPropHeldTimer > undoPropRate )
 			{
@@ -29,16 +29,35 @@ public partial class PlayerState
 
 	private void HandlePropDestroyInitiation()
 	{
-		if ( SpawnedPropsList.Count > 0 )
+		if ( SpawnedThings.Count > 0 )
 		{
-			DestroyLastSpawnedProp( SpawnedPropsList.Last() );
-			SpawnedPropsList.RemoveAt( SpawnedPropsList.IndexOf( SpawnedPropsList.Last() ) );
+			DestroyLastSpawnedProp( SpawnedThings.Last() );
+			SpawnedThings.RemoveAt( SpawnedThings.IndexOf( SpawnedThings.Last() ) );
 		}
 	}
 
 	[Broadcast]
-	public void DestroyLastSpawnedProp( GameObject propToDestroy )
+	public void DestroyLastSpawnedProp( Thing propToDestroy )
 	{
-		propToDestroy?.Destroy();
+		if(propToDestroy.gameObjects != null)
+		{
+			foreach (GameObject g in propToDestroy.gameObjects)
+			{
+				g?.Destroy();
+			}
+		}
+		if(propToDestroy.components != null)
+		{
+			foreach (Component c in propToDestroy.components)
+			{
+				c?.Destroy();
+			} 
+		}
+	}
+
+	public class Thing
+	{
+		public List<GameObject> gameObjects {get;set;}
+		public List<Component> components {get;set;}
 	}
 }

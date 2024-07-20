@@ -15,25 +15,17 @@ public sealed class Duplicator : ToolComponent
 	}
     protected override void PrimaryAction()
     {
-        var hit = Scene.Trace.Ray( WeaponRay.Position, WeaponRay.Position+WeaponRay.Forward*500 )
-			.UseHitboxes()
-			.IgnoreGameObjectHierarchy( GameObject.Root )
-			.WithoutTags( "trigger", "invis", "ragdoll", "movement", "player_clip" )
-			.Run();
+        var hit = Trace();
         if(hit.Hit)
         {
             Recoil(hit.EndPosition);
-            Log.Info(storedObject.ToJsonString());
-            SpawnObject(storedObject,hit.EndPosition + Vector3.Up*50,Rotation.LookAt(Equipment.Owner.Transform.World.Forward));
+
+            SpawnObject(PlayerState.Local.PlayerPawn, storedObject,hit.EndPosition + Vector3.Up*50,Rotation.LookAt(Equipment.Owner.Transform.World.Forward));
         }
     }
 	protected override void SecondaryAction()
 	{
-        var hit = Scene.Trace.Ray( WeaponRay.Position, WeaponRay.Position+WeaponRay.Forward*500 )
-			.UseHitboxes()
-			.IgnoreGameObjectHierarchy( GameObject.Root )
-			.WithoutTags( "trigger", "invis", "ragdoll", "movement", "player_clip" )
-			.Run();
+        var hit = Trace();
         if(hit.Hit && hit.GameObject.Name != "Map")
         {
             Recoil(hit.EndPosition);
@@ -74,7 +66,7 @@ public sealed class Duplicator : ToolComponent
 	}
 
     [Broadcast]
-    public static void SpawnObject(JsonObject gameObject, Vector3 position, Rotation rotation)
+    public static void SpawnObject(PlayerPawn owner, JsonObject gameObject, Vector3 position, Rotation rotation)
     {
         if ( !Networking.IsHost )
 			return;
@@ -83,11 +75,24 @@ public sealed class Duplicator : ToolComponent
         newObject.Deserialize(gameObject);
         newObject.Transform.Position = position;
         newObject.Transform.Rotation = rotation;
+        PlayerState.Thing thing = new PlayerState.Thing
+        {
+            gameObjects = new List<GameObject>()
+        };
+
         while (newObject.Children.Count > 0)
         {
             GameObject go = newObject.Children[0];
+            
             go.SetParent(Game.ActiveScene);
             go.NetworkSpawn();
+
+            thing.gameObjects.Add(go);
+        }
+        Log.Info(thing.gameObjects.Count);
+        if(owner == PlayerState.Local.PlayerPawn)
+        {
+            owner.PlayerState.SpawnedThings.Add(thing);
         }
         newObject.Destroy();
     }

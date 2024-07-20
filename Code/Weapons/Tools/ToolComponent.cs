@@ -5,7 +5,8 @@ namespace Softsplit;
 /// </summary>
 public abstract class ToolComponent : InputWeaponComponent
 {
-	public LineRenderer LineRenderer { get; set; }
+	public VectorLineRenderer LineRenderer1 { get; set; }
+	public VectorLineRenderer LineRenderer2 { get; set; }
 	public bool AlwaysEnabledMenu { get; set; }
 	public string ToolName { get; set; } = "";
 	public string ToolDes { get; set; } = "";
@@ -19,15 +20,25 @@ public abstract class ToolComponent : InputWeaponComponent
 		InputActions.Add( "Attack2" );
 		InputActions.Add( "ToolGunMenu" );
 
-		LineRenderer = Components.GetOrCreate<LineRenderer>();
-		LineRenderer.Color = Color.Cyan;
-		LineRenderer.Width = 0.1f;
+		LineRenderer2 = Components.Create<VectorLineRenderer>();
+		LineRenderer2.Points = new List<Vector3>{Vector3.Zero};
+		LineRenderer2.Color = new Color(0f, 0.5f, 1f);
+		LineRenderer2.Width = 0.1f;
+		LineRenderer2.Noise = 1f;
+
+		LineRenderer1 = Components.Create<VectorLineRenderer>();
+		LineRenderer1.Points = new List<Vector3>{Vector3.Zero};
+		LineRenderer1.Color = Color.Cyan;
+		LineRenderer1.Width = 0.1f;
+		LineRenderer1.Noise = 0.2f;
+
+		
 
 		Start();
 	}
 
 	[Sync, Property] public float RayActive { get; set; }
-	[Property] public float RayTime { get; set; } = 0.1f;
+	[Property] public float RayTime { get; set; } = 0.2f;
 
 	protected override void OnUpdate()
 	{
@@ -35,7 +46,10 @@ public abstract class ToolComponent : InputWeaponComponent
 
 		RayActive -= Time.Delta;
 
-		LineRenderer.Enabled = RayActive > 0;
+		LineRenderer1.Enabled = RayActive > 0;
+		LineRenderer2.Enabled = RayActive > 0;
+		
+		
 	}
 
 	protected override void OnInputUpdate()
@@ -62,7 +76,7 @@ public abstract class ToolComponent : InputWeaponComponent
 
 	protected virtual void Update()
 	{
-
+		
 	}
 
 	protected virtual void PrimaryAction()
@@ -74,6 +88,7 @@ public abstract class ToolComponent : InputWeaponComponent
 	{
 
 	}
+
 
 	protected IEquipment Effector
 	{
@@ -89,6 +104,15 @@ public abstract class ToolComponent : InputWeaponComponent
 	private GameObject p1;
 	private GameObject p2;
 
+	protected SceneTraceResult Trace()
+	{
+		return Scene.Trace.Ray( WeaponRay.Position, WeaponRay.Position + WeaponRay.Forward * 500 )
+		.UseHitboxes()
+		.IgnoreGameObjectHierarchy( GameObject.Root )
+		.WithoutTags( "trigger", "invis", "ragdoll", "movement", "player_clip", "player" )
+		.Run();
+	}
+
 	[Broadcast]
 	public void Recoil( Vector3 effectPoint )
 	{
@@ -100,13 +124,8 @@ public abstract class ToolComponent : InputWeaponComponent
 
 		RayActive = RayTime;
 
-		p1 = new GameObject();
-		p1.Transform.Position = Effector.Muzzle.Transform.Position;
-
-		p2 = new GameObject();
-		p2.Transform.Position = effectPoint;
-
-		LineRenderer.Points = new List<GameObject> { p1, p2 };
+		LineRenderer1.Points = GetSpacedPoints( Effector.Muzzle.Transform.Position, effectPoint, 10);
+		LineRenderer2.Points = GetSpacedPoints( Effector.Muzzle.Transform.Position, effectPoint, 20);
 
 		Sound.Play( "sounds/guns/gun_dryfire.sound", Transform.Position );
 
@@ -116,4 +135,19 @@ public abstract class ToolComponent : InputWeaponComponent
 		if ( Equipment.ViewModel.IsValid() )
 			Equipment.ViewModel.ModelRenderer.Set( "b_attack", true );
 	}
+	public static List<Vector3> GetSpacedPoints(Vector3 start, Vector3 end, int numberOfPoints)
+    {
+        List<Vector3> points = new List<Vector3>();
+
+        float step = 1.0f / (numberOfPoints - 1);
+
+        for (int i = 0; i < numberOfPoints; i++)
+        {
+            float t = i * step;
+            Vector3 point = Vector3.Lerp(start, end, t);
+            points.Add(point);
+        }
+
+        return points;
+    }
 }
