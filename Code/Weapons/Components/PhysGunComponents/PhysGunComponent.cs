@@ -41,15 +41,16 @@ public partial class PhysGunComponent : InputWeaponComponent,
 	{
 		beam = Components.Get<Beam>();
 	}
-
+	bool rotating;
 	protected override void OnUpdate()
 	{
-		
+		Equipment.Owner.lockCamera = rotating;
 		beam.enabled = Grabbing && GrabbedObject!=null;
 		if(GrabbedObjectHighlight != null) GrabbedObjectHighlight.Enabled = Grabbing && GrabbedObject!=null;
 		if(Grabbing && GrabbedObject!=null)
 		{
 			beam.CreateEffect(Effector.Muzzle.Transform.Position,GrabbedObject.Transform.Local.PointToWorld(GrabbedPos), Effector.Muzzle.Transform.World.Forward);
+			beam.Base = Effector.Muzzle.Transform.Position;
 			if(GrabbedObjectHighlight == null) GrabbedObjectHighlight = GrabbedObject.Components.Get<HighlightOutline>(true);
 		}	
 		if ( IsProxy ) return;
@@ -130,7 +131,7 @@ public partial class PhysGunComponent : InputWeaponComponent,
 			Input.MouseWheel = 0;
 		}
 
-		Equipment.Owner.Inventory.cantSwitch = Grabbing;
+		Equipment.Owner.Inventory.cantSwitch = GrabbedObject != null;
 	}
 
 	[Broadcast]
@@ -289,7 +290,7 @@ public partial class PhysGunComponent : InputWeaponComponent,
 
 		MoveTargetDistance( Input.MouseWheel.y * TargetDistanceSpeed );
 
-		bool rotating = Input.Down( "Use" );
+		rotating = Input.Down( "Use" );
 		bool snapping = false;
 
 		if ( rotating )

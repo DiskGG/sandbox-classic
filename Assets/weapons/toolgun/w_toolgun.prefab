@@ -59,7 +59,7 @@
             "__guid": "93b70621-3326-4689-b0dd-82371b9b8594",
             "Flags": 0,
             "Name": "Muzzle",
-            "Position": "4.320035,0,4.755252",
+            "Position": "4.689797,-0.000000001512876,4.925364",
             "Enabled": true
           },
           {
@@ -98,7 +98,7 @@
             "__guid": "8f94d5ed-d7b4-41bd-b5c9-6928ffb584d1"
           },
           {
-            "__type": "Beam",
+            "__type": "Softsplit.Beam",
             "__guid": "b7e74c01-ed90-4535-b92f-3d343a80b445",
             "Base": "0,0,0",
             "EffectCurve1": {
@@ -151,8 +151,13 @@
                 }
               ]
             },
+            "EffectStart": true,
             "enabled": false,
-            "pointDistance": 4
+            "Noise": 1,
+            "pointDistance": 4,
+            "RunBySelf": false,
+            "Scale": 0.5,
+            "StartParticle": "particles/toolgun_start.vpcf"
           }
         ]
       }
