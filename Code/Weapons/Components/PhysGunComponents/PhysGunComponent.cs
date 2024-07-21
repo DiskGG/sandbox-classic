@@ -27,16 +27,31 @@ public partial class PhysGunComponent : InputWeaponComponent,
 
 	[Sync] public bool BeamActive { get; set; }
 	[Sync] public GameObject GrabbedObject { get; set; }
+	public HighlightOutline GrabbedObjectHighlight { get; set; }
 	[Sync] public int GrabbedBone { get; set; }
 	[Sync] public Vector3 GrabbedPos { get; set; }
 
 	/// <summary>
 	/// Accessor for the aim ray.
 	/// </summary>
+
 	protected Ray WeaponRay => Equipment.Owner.AimRay;
+	Beam beam;
+	protected override void OnStart()
+	{
+		beam = Components.Get<Beam>();
+	}
 
 	protected override void OnUpdate()
 	{
+		
+		beam.enabled = Grabbing && GrabbedObject!=null;
+		if(GrabbedObjectHighlight != null) GrabbedObjectHighlight.Enabled = Grabbing && GrabbedObject!=null;
+		if(Grabbing && GrabbedObject!=null)
+		{
+			beam.CreateEffect(Effector.Muzzle.Transform.Position,GrabbedObject.Transform.Local.PointToWorld(GrabbedPos));
+			if(GrabbedObjectHighlight == null) GrabbedObjectHighlight = GrabbedObject.Components.Get<HighlightOutline>(true);
+		}	
 		if ( IsProxy ) return;
 
 		if ( !HeldBody.IsValid() )
@@ -52,6 +67,17 @@ public partial class PhysGunComponent : InputWeaponComponent,
 		var angularVelocity = HeldBody.AngularVelocity;
 		Rotation.SmoothDamp( HeldBody.Rotation, HoldRot, ref angularVelocity, 0.075f, Time.Delta );
 		HeldBody.AngularVelocity = angularVelocity;
+	}
+
+	protected IEquipment Effector
+	{
+		get
+		{
+			if ( IsProxy || !Equipment.ViewModel.IsValid() )
+				return Equipment;
+
+			return Equipment.ViewModel;
+		}
 	}
 
 	protected override void OnInputUpdate()
@@ -78,34 +104,33 @@ public partial class PhysGunComponent : InputWeaponComponent,
 
 		BeamActive = grabEnabled;
 
-		using ( Rpc.FilterInclude( Connection.Host ) )
+		if ( grabEnabled )
 		{
-			if ( grabEnabled )
+			if ( HeldBody.IsValid() )
 			{
-				if ( HeldBody.IsValid() )
-				{
-					UpdateGrab( eyePos, eyeRot, eyeDir, wantsToFreeze );
-				}
-				else
-				{
-					TryStartGrab( eyePos, eyeRot, eyeDir );
-				}
+				UpdateGrab( eyePos, eyeRot, eyeDir, wantsToFreeze );
 			}
-			else if ( Grabbing )
+			else
 			{
-				GrabEnd();
+				TryStartGrab( eyePos, eyeRot, eyeDir );
 			}
+		}
+		else if ( Grabbing )
+		{
+			GrabEnd();
+		}
 
-			if ( Grabbing && Input.Pressed( "reload" ) )
-			{
-				TryUnfreezeAll( eyePos, eyeRot, eyeDir );
-			}
+		if ( Grabbing && Input.Pressed( "reload" ) )
+		{
+			TryUnfreezeAll( eyePos, eyeRot, eyeDir );
 		}
 
 		if ( BeamActive )
 		{
 			Input.MouseWheel = 0;
 		}
+
+		Equipment.Owner.Inventory.cantSwitch = Grabbing;
 	}
 
 	[Broadcast]
@@ -121,7 +146,7 @@ public partial class PhysGunComponent : InputWeaponComponent,
 		var rootEnt = tr.GameObject.Root;
 		if ( !rootEnt.IsValid() ) return;
 
-		var weldContexts = GetAllConnectedWelds(rootEnt.Components.Get<WeldContext>());
+		var weldContexts = GetAllConnectedWelds(rootEnt);
 
 		bool unfrozen = false;
 
@@ -130,7 +155,7 @@ public partial class PhysGunComponent : InputWeaponComponent,
 		
 		for ( int i = 0; i < weldContexts.Count; i++ )
 		{
-			var body = weldContexts[i].body;
+			var body = weldContexts[i].Components.Get<Rigidbody>().PhysicsBody;
 			if ( !body.IsValid() ) continue;
 
 			if ( body.BodyType == PhysicsBodyType.Static )
@@ -147,34 +172,35 @@ public partial class PhysGunComponent : InputWeaponComponent,
 		}
 	}
 
-	 public static List<WeldContext> GetAllConnectedWelds(Component component)
+
+	public static List<GameObject> GetAllConnectedWelds(GameObject gameObject)
     {
+		Component component = gameObject.Components.Get<WeldContext>();
         var result = new List<WeldContext>();
         var visited = new HashSet<Component>();
 
         CollectWelds(component, result, visited);
-
-        return result;
+		List<GameObject> returned = new List<GameObject>();
+		foreach(WeldContext weldContext in result)
+		{
+			returned.Add(weldContext.GameObject);
+		}
+        return returned;
     }
 
     private static void CollectWelds(Component component, List<WeldContext> result, HashSet<Component> visited)
     {
-        // Base case: If the component has already been visited, return
         if (visited.Contains(component))
         {
             return;
         }
 
-        // Mark the component as visited
         visited.Add(component);
 
-        // Get all WeldContext components on the current component
         var weldContexts = component.Components.GetAll<WeldContext>();
 
-        // Add all WeldContext components to the result list
         result.AddRange(weldContexts);
 
-        // Iterate over each WeldContext to recursively collect connected welds
         foreach (var weldContext in weldContexts)
         {
             if (weldContext.weldedObject != null)
@@ -184,19 +210,22 @@ public partial class PhysGunComponent : InputWeaponComponent,
         }
     }
 
-	[Broadcast]
+
 	private void TryStartGrab( Vector3 eyePos, Rotation eyeRot, Vector3 eyeDir )
 	{
+		
 		var tr = Scene.Trace.Ray( eyePos, eyePos + eyeDir * MaxTargetDistance )
 			.UseHitboxes()
 			.WithAnyTags( "solid", "player", "debris", "nocollide" )
 			.IgnoreGameObjectHierarchy( GameObject.Root )
 			.Run();
 
-		if ( !tr.Hit || !tr.GameObject.IsValid() || tr.Component is MapCollider || tr.StartedSolid ) return;
-
+		if ( !tr.Hit || !tr.GameObject.IsValid() || tr.Component is MapCollider || tr.StartedSolid || tr.Tags.Contains("map") ) return;
+		Log.Info("fu");
 		var rootEnt = tr.GameObject.Root;
 		var body = tr.Body;
+
+		
 
 		if ( !body.IsValid() || tr.GameObject.Parent.IsValid() )
 		{
@@ -229,6 +258,8 @@ public partial class PhysGunComponent : InputWeaponComponent,
 		GrabInit( body, eyePos, tr.EndPosition, eyeRot );
 
 		GrabbedObject = rootEnt;
+		GrabbedPos = tr.GameObject.Transform.World.PointToLocal(tr.EndPosition);
+		GrabbedObject.Network.TakeOwnership();
 		GrabbedObject.Tags.Add( GrabbedTag );
 		GrabbedObject.Tags.Add( $"{GrabbedTag}{Equipment.Owner.SteamId}" );
 
@@ -236,7 +267,7 @@ public partial class PhysGunComponent : InputWeaponComponent,
 		GrabbedBone = body.GroupIndex;
 	}
 
-	[Broadcast]
+
 	private void UpdateGrab( Vector3 eyePos, Rotation eyeRot, Vector3 eyeDir, bool wantsToFreeze )
 	{
 		if ( wantsToFreeze )
@@ -291,10 +322,9 @@ public partial class PhysGunComponent : InputWeaponComponent,
 		HeldBody.Sleeping = false;
 		HeldBody.AutoSleep = false;
 	}
-
-	[Broadcast]
 	private void GrabEnd()
 	{
+		if(GrabbedObject == null) return;
 		if ( HeldBody.IsValid() )
 		{
 			HeldBody.AutoSleep = true;
@@ -306,7 +336,12 @@ public partial class PhysGunComponent : InputWeaponComponent,
 			GrabbedObject.Tags.Remove( $"{GrabbedTag}{Equipment.Owner.SteamId}" );
 		}
 
+
+		GameObject gameObject = GrabbedObject;
+		if(GrabbedObjectHighlight == null) GrabbedObjectHighlight = GrabbedObject.Components.Get<HighlightOutline>();
+		GrabbedObjectHighlight.Enabled = false;
 		GrabbedObject = null;
+		GrabbedObjectHighlight = null;
 
 		HeldBody = null;
 		Grabbing = false;

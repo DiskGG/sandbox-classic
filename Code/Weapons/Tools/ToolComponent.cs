@@ -5,8 +5,7 @@ namespace Softsplit;
 /// </summary>
 public abstract class ToolComponent : InputWeaponComponent
 {
-	public VectorLineRenderer LineRenderer1 { get; set; }
-	public VectorLineRenderer LineRenderer2 { get; set; }
+	public Beam beam {get;set;}
 	public bool AlwaysEnabledMenu { get; set; }
 	public string ToolName { get; set; } = "";
 	public string ToolDes { get; set; } = "";
@@ -15,22 +14,15 @@ public abstract class ToolComponent : InputWeaponComponent
 
 	private ToolGunHandler toolGunHandler;
 
+
+
 	protected override void OnStart()
 	{
 		InputActions.Add( "Attack2" );
 		InputActions.Add( "ToolGunMenu" );
 
-		LineRenderer2 = Components.Create<VectorLineRenderer>();
-		LineRenderer2.Points = new List<Vector3>{Vector3.Zero};
-		LineRenderer2.Color = new Color(0f, 0.5f, 1f);
-		LineRenderer2.Width = 0.1f;
-		LineRenderer2.Noise = 1f;
-
-		LineRenderer1 = Components.Create<VectorLineRenderer>();
-		LineRenderer1.Points = new List<Vector3>{Vector3.Zero};
-		LineRenderer1.Color = Color.Cyan;
-		LineRenderer1.Width = 0.1f;
-		LineRenderer1.Noise = 0.2f;
+		beam = Components.Get<Beam>();
+		
 
 		
 
@@ -46,11 +38,14 @@ public abstract class ToolComponent : InputWeaponComponent
 
 		RayActive -= Time.Delta;
 
-		LineRenderer1.Enabled = RayActive > 0;
-		LineRenderer2.Enabled = RayActive > 0;
-		
-		
+		beam.enabled = RayActive > 0;
+
+		if(Equipment.Owner.CharacterController.Velocity.Length < 1)
+		{
+			beam.Base = Effector.Muzzle.Transform.Position;
+		}
 	}
+
 
 	protected override void OnInputUpdate()
 	{
@@ -123,9 +118,7 @@ public abstract class ToolComponent : InputWeaponComponent
 		}
 
 		RayActive = RayTime;
-
-		LineRenderer1.Points = GetSpacedPoints( Effector.Muzzle.Transform.Position, effectPoint, 10);
-		LineRenderer2.Points = GetSpacedPoints( Effector.Muzzle.Transform.Position, effectPoint, 20);
+		beam.CreateEffect(Effector.Muzzle.Transform.Position, effectPoint);
 
 		Sound.Play( "sounds/guns/gun_dryfire.sound", Transform.Position );
 
@@ -135,19 +128,5 @@ public abstract class ToolComponent : InputWeaponComponent
 		if ( Equipment.ViewModel.IsValid() )
 			Equipment.ViewModel.ModelRenderer.Set( "b_attack", true );
 	}
-	public static List<Vector3> GetSpacedPoints(Vector3 start, Vector3 end, int numberOfPoints)
-    {
-        List<Vector3> points = new List<Vector3>();
-
-        float step = 1.0f / (numberOfPoints - 1);
-
-        for (int i = 0; i < numberOfPoints; i++)
-        {
-            float t = i * step;
-            Vector3 point = Vector3.Lerp(start, end, t);
-            points.Add(point);
-        }
-
-        return points;
-    }
+	
 }

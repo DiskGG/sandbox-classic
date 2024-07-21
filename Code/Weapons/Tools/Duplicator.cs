@@ -20,7 +20,7 @@ public sealed class Duplicator : ToolComponent
         {
             Recoil(hit.EndPosition);
 
-            SpawnObject(PlayerState.Local.PlayerPawn, storedObject,hit.EndPosition + Vector3.Up*50,Rotation.LookAt(Equipment.Owner.Transform.World.Forward));
+            SpawnObject(storedObject.ToJsonString(),hit.EndPosition + Vector3.Up*50,Rotation.LookAt(Equipment.Owner.Transform.World.Forward));
         }
     }
 	protected override void SecondaryAction()
@@ -31,18 +31,19 @@ public sealed class Duplicator : ToolComponent
             Recoil(hit.EndPosition);
             GameObject copied = new GameObject();
             copied.Transform.Position = hit.EndPosition;
+            
 
-            WeldContext weldContext = hit.GameObject.Components.Get<WeldContext>();
 
-            if(weldContext != null)
+            List<GameObject> weldConnections =  PhysGunComponent.GetAllConnectedWelds(hit.GameObject);
+
+            if(weldConnections.Count>1)
             {
-                List<WeldContext> weldContexts = PhysGunComponent.GetAllConnectedWelds(weldContext);
 
-                for(int i = 0; i < weldContexts.Count; i++)
+                for(int i = 0; i < weldConnections.Count; i++)
                 {
-                    if(!copied.Children.Contains(weldContexts[i].GameObject))
+                    if(!copied.Children.Contains(weldConnections[i]))
                     {
-                        weldContexts[i].GameObject.SetParent(copied);
+                        weldConnections[i].SetParent(copied);
                     }
                 }
             }
@@ -66,10 +67,13 @@ public sealed class Duplicator : ToolComponent
 	}
 
     [Broadcast]
-    public static void SpawnObject(PlayerPawn owner, JsonObject gameObject, Vector3 position, Rotation rotation)
+    public static void SpawnObject(string gameObjectText, Vector3 position, Rotation rotation)
     {
+        
         if ( !Networking.IsHost )
 			return;
+
+        JsonObject gameObject = Json.Deserialize<JsonObject>(gameObjectText);
         GameObject newObject = new GameObject();
         SceneUtility.MakeIdGuidsUnique(gameObject);
         newObject.Deserialize(gameObject);
@@ -90,10 +94,6 @@ public sealed class Duplicator : ToolComponent
             thing.gameObjects.Add(go);
         }
         Log.Info(thing.gameObjects.Count);
-        if(owner == PlayerState.Local.PlayerPawn)
-        {
-            owner.PlayerState.SpawnedThings.Add(thing);
-        }
         newObject.Destroy();
     }
 }
